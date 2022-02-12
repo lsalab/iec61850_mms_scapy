@@ -1,11 +1,11 @@
 from . import tpkt
-from . import cotp
+from .cotp import packets
 from . import iso_8327_1
 from . import iso_8823
 from . import iso_8650_1
 
 from .tpkt import TPKT
-from .cotp import COTP_Data, COTP_Connection_Confirm, COTP, COTP_Connection_Request
+from .cotp.packets import COTP_Data, COTP_Connection_Confirm, COTP, COTP_Connection_Request
 from .iso_8327_1 import ISO_8327_1_Session, ISO_8327_1_Session_User_Data, ISO_8327_1_Session_Accept, \
     ISO_8327_1_Session_Connect
 from .iso_8823 import ISO_8823_Presentation_CP_Type, ISO_8823_Presentation_CPA_Type, ISO_8823_Presentation_CPC_Type
