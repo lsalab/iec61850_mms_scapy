@@ -13,81 +13,103 @@ Limited Support for:
 
 
 from scapy.packet import Packet
-from scapy.fields import ByteField, LenField, ShortField, StrLenField, \
-                         BitField, PacketListField, FieldLenField
+from scapy.fields import BitField, BitEnumField, XByteField, ByteEnumField, XByteEnumField, \
+                         LenField, ShortField, XShortField, XStrLenField, PacketListField, \
+                         FieldLenField, FieldListField, FlagsField, ThreeBytesField, \
+                         X3BytesField, XLongField, MultipleTypeField
+
+from .enums import *
 
 
 class COTP_Parameter(Packet):
     name = "COTP Parameter"
-    fields_desc = [ByteField("code", None),
-                   FieldLenField("length", None, fmt="B", length_of="value"),
-                   StrLenField("value", None, length_from=lambda x: x.length)]
+    fields_desc = [
+        XByteEnumField("code", None, COTP_PARAMETER_CODES),
+        FieldLenField("length", None, fmt="B", length_of="value"),
+        MultipleTypeField(
+            [
+                (XStrLenField("value", None, length_from=lambda x: x.length), lambda pkt: pkt.code in [0xc1, 0xc2, 0xc5, 0xc7, 0xe0]),
+                (ByteEnumField("value", 0x07, TPDU_SIZE), lambda pkt: pkt.code == 0xc0),
+                (XByteField("value", 0x01), lambda pkt: pkt.code == 0xc4),
+                (FlagsField("value", 0x01, 8, TPDU_AOS_FLAGS), lambda pkt: pkt.code == 0xc6),
+                (ShortField("value", 0x0000), lambda pkt: pkt.code in [0x85, 0x87, 0x8a, 0x8b, 0xc3]),
+                (FieldListField("value", [], ThreeBytesField('', 0), count_from=lambda pkt: pkt.length // 3), lambda pkt: pkt.code == 0x89),
+                (X3BytesField("value", 0), lambda pkt: pkt == 0x86),
+                (XLongField("value", 0), lambda pkt: pkt.code in [0x88, 0x8c])
+            ],
+            XStrLenField("value", None, length_from=lambda x: x.length)
+        )
+    ]
 
     def extract_padding(self, s):
         return '', s
 
+class COTP_Connection_Parameter(Packet):
+    name = "COTP Parameter"
+    fields_desc = [
+        ByteEnumField("code", None, COTP_PARAMETER_CODES)
+    ]
 
-class COTP_Connection_Request(Packet):
+class COTP_CR(Packet):
+    '''
+    Connection Request (CR) TPDU
+
+    As defined by RFC905, section 13.3
+    '''
     name = "COTP Connection Request (CR)"
-    fields_desc = [LenField("length", None, fmt="!B", adjust=lambda x: x + 5),
-                   ByteField("tpdu_code", 0xd0),
-                   ShortField("destination_reference", None),
-                   ShortField("source_reference", None),
-                   BitField("class", 0, 4),
-                   BitField("reserved", 0, 2),
-                   BitField("extended_format", 0, 1),
-                   BitField("explicit", 0, 1),
-                   PacketListField("parameters", None, COTP_Parameter)]
+    fields_desc = [
+        LenField("length", None, fmt="!B", adjust=lambda x: x + 5),
+        BitEnumField("TPDU", 0b1110, 4, TPDU_CODE_TYPES),
+        BitField("CDT", 0b0000, 4),
+        XShortField("destination_reference", None),
+        XShortField("source_reference", None),
+        BitField("class", 0, 4),
+        BitField("reserved", 0, 2),
+        BitField("extended_format", 0, 1),
+        BitField("explicit", 0, 1),
+        PacketListField("parameters", None, COTP_Parameter)
+    ]
 
 
-class COTP_Connection_Confirm(Packet):
-    name = "COTP Connection Confirm (CC)"
-    fields_desc = COTP_Connection_Request.fields_desc
+# class COTP_Connection_Confirm(Packet):
+#     name = "COTP Connection Confirm (CC)"
+#     fields_desc = COTP_Connection_Request.fields_desc
 
 
 class COTP_Data(Packet):
     name = "COTP Data (DT)"
-    fields_desc = [ByteField("length", 2),
-                   ByteField("tpdu_code", 0x0f),
+    fields_desc = [XByteField("length", 2),
+                   XByteField("tpdu_code", 0x0f),
                    BitField("last_data_unit", 1, 1),
                    BitField("tpdu_number", 0, 7)]
 
-
-masked_tpdu_types = {
-    0b1110: COTP_Connection_Request,  # CR
-    0b1101: COTP_Connection_Confirm,  # CC
-    # 0b0110: None, # AK, not required for MMS
-    # 0b0101: None, # RJ, not required for MMS
+COTP_TPDU_PAYLOADS = {
+    # 0x10: 'ED Expedited Data',
+    # 0x20: 'EA Expedited Data Acknowledgement',
+    # 0x50: 'RJ Reject',
+    # 0x60: 'AK Data Acknowledgment',
+    # 0x70: 'ER TDPU Error',
+    # 0x80: 'DR Disconnect Request',
+    # 0xc0: 'DC Disconnect Confirm',
+    # 0xd0: 'CC Connection Confirm',
+    0xe0: COTP_CR,
+    # 0xf0: 'DT Data'
 }
-
-
-fixed_tpdu_types = {
-    # 0b10000000: None,  # DR, not required for MMS
-    # 0b11000000: None,  # DC, not required for MMS
-    0b11110000: COTP_Data,  # DT
-    # 0b00010000: None,  # ED, not required for MMS
-    # 0b00100000: None,  # EA, not required for MMS
-    # 0b01110000: None,  # ER, not required for MMS
-}
-
 
 class COTP(Packet):
+    name = 'COTP Connection-Oriented Transport Protocol'
+
     def guess_payload_class(self, payload):
         ln = len(payload)
+        
         if ln < 2:
             return self.default_payload_class(payload)
-        tpdu_code = int(payload[1])
-        cls = None
-
-        if tpdu_code in fixed_tpdu_types:
-            cls = fixed_tpdu_types[tpdu_code]
-
-        if cls is not None:
-            return cls
-        tpdu_code >>= 0x04
-        if tpdu_code in masked_tpdu_types:
-            cls = masked_tpdu_types[tpdu_code]
-
-        return cls if cls is not None else self.default_payload_class(payload)
+        
+        tpdu_code = int(payload[1]) & 0xf0
+        
+        if tpdu_code in COTP_TPDU_PAYLOADS:
+            return COTP_TPDU_PAYLOADS[tpdu_code]
+        
+        return self.default_payload_class(payload)
 
 
