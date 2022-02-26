@@ -1,6 +1,6 @@
 from scapy.packet import Packet, Raw
 from .mms import MMS
-from .iso_8327_1 import ISO_8327_1_Session
+from .iso8327_1.packets import ISO_8327_1_Session
 
 
 class Pseudo_Layer(Packet):

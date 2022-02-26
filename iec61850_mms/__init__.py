@@ -1,12 +1,12 @@
 from . import tpkt
 from .cotp import packets
-from . import iso_8327_1
+from .iso8327_1 import packets
 from . import iso_8823
 from . import iso_8650_1
 
 from .tpkt import TPKT
-from .cotp.packets import COTP_Data, COTP
-from .iso_8327_1 import ISO_8327_1_Session, ISO_8327_1_Session_User_Data, ISO_8327_1_Session_Accept, \
+# from .cotp.packets import COTP_Data
+from .iso8327_1.packets import ISO_8327_1_Session, ISO_8327_1_Session_User_Data, ISO_8327_1_Session_Accept, \
     ISO_8327_1_Session_Connect
 from .iso_8823 import ISO_8823_Presentation_CP_Type, ISO_8823_Presentation_CPA_Type, ISO_8823_Presentation_CPC_Type
 from .iso_8650_1 import AARE, AARQ, ACSE
@@ -16,7 +16,7 @@ from .mms import MMS, MMS_Confirmed_Request_PDU, MMS_Initiate_Response_PDU, MMS_
 def bind_layers():
     from scapy.all import bind_layers
     from scapy.layers.inet import TCP
-    from .iso_8327_1 import ISO_8327_1_Session_Dummy
+    from .iso8327_1.packets import ISO_8327_1_Session_Dummy
     from ._internal import Pseudo_Layer
     # TPKT is nowadays above tcp and usually on port 102
     bind_layers(TCP, TPKT, sport=tpkt.TPKT_ISO_TSAP_PORT)
@@ -26,7 +26,7 @@ def bind_layers():
     # ISO 8327_1, Session establishment should be in a COTP Data PDU
     # YET!! MMS may be layered right on top of COTP in a minimized network stack... so bind the next layer to a
     # pseudo-layer that guesses the right class.
-    bind_layers(COTP_Data, Pseudo_Layer)
+    # bind_layers(COTP_Data, Pseudo_Layer)
     # ISO 8823, this is where it gets tricky...
     bind_layers(ISO_8327_1_Session_Accept, ISO_8823_Presentation_CPA_Type)
     bind_layers(ISO_8327_1_Session_Dummy, ISO_8823_Presentation_CPC_Type)
