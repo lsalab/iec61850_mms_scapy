@@ -128,16 +128,21 @@ class COTP_DT(Packet):
         else:
             s += pack('B', ((self.EOT & 0x01) << 7) | (self.TPDU_NR & 0x7f))
         return s
-        
-    def guess_payload_class(self, payload: bytes):
-        try:
-            if len(payload) > 0:
-                spdu_type = int(payload[0])
-                if spdu_type in SPDU_PAYLOADS.keys():
-                    return ISO_8327_1_Session
-            return self.default_payload_class(payload)
-        except TypeError:
-            return self.default_payload_class(payload)
+    
+    def do_dissect_payload(self, s: bytes):
+        if s is not None and int(s[0]) in SPDU_PAYLOADS.keys():
+            p = ISO_8327_1_Session(s, _internal=1, _underlayer=self)
+            self.add_payload(p)
+    
+    # def guess_payload_class(self, payload: bytes):
+    #     try:
+    #         if len(payload) > 0:
+    #             spdu_type = int(payload[0])
+    #             if spdu_type in SPDU_PAYLOADS.keys():
+    #                 return ISO_8327_1_Session
+    #         return self.default_payload_class(payload)
+    #     except TypeError:
+    #         return self.default_payload_class(payload)
 
 
 
