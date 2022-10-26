@@ -1,8 +1,8 @@
 from . import tpkt
-from .cotp import packets
-from .iso8327_1 import packets
 from . import iso_8823
 from . import iso_8650_1
+from .cotp import packets
+from .iso8327_1 import packets
 
 from .tpkt import TPKT
 # from .cotp.packets import COTP_Data
